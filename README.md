@@ -60,7 +60,7 @@ Al entrar al casino tras completar etapa 7 del `world_1`, el BFF aplica patch co
 ### BFF
 
 ```bash
-cd /Users/bryandanielmoncadaramos/new_project/bff
+cd new_project/bff
 npm install
 npm run start:dev
 ```
@@ -68,7 +68,7 @@ npm run start:dev
 ### Frontend
 
 ```bash
-cd /Users/bryandanielmoncadaramos/new_project/frontend
+cd new_project/frontend
 npm install
 npm run dev
 ```
