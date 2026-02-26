@@ -1,0 +1,148 @@
+{
+    "version": "2.0.0",
+    "narrativa": {
+        "id": "ruta_gran_casino",
+        "titulo": "Ruta al Gran Casino",
+        "tema": "nocturno"
+    },
+    "assets": {
+        "background": "https://pixijs.com/assets/bg_rotate.jpg",
+        "sprites": {
+            "player_idle": "",
+            "player_walk": "",
+            "stage_locked": "",
+            "stage_unlocked": "",
+            "stage_active": "",
+            "stage_completed": "",
+            "chest_closed": "",
+            "chest_open": "",
+            "npc_guide": "",
+            "events_board": "",
+            "missions_book": "",
+            "dock_mochila": "",
+            "dock_casino": "",
+            "dock_tienda": "",
+            "casino_locked": "",
+            "casino_unlocked": "",
+            "coin_icon": "",
+            "energy_icon": "",
+            "item_recompensa": "",
+            "item_promocion": "",
+            "popup_window": ""
+        }
+    },
+    "economy": {
+        "currencyName": "Fichas",
+        "startStageCost": 5,
+        "chestCost": 10,
+        "energyCost": 1,
+        "energyMax": 5,
+        "energyRegenSeconds": 30,
+        "stageRewardRange": { "min": 10, "max": 40 }
+    },
+    "player": {
+        "id": "p1",
+        "nombre": "Viajero",
+        "nivel": 1,
+        "xp": 0,
+        "fichas": 100,
+        "energia": 5,
+        "energiaMax": 5,
+        "energyUpdatedAt": "2026-02-20T00:00:00.000Z",
+        "currentStage": 1,
+        "inventory": {
+            "recompensas": [],
+            "promociones": [
+                {
+                    "id": "promo-inicial-descuento",
+                    "nombre": "Descuento",
+                    "rareza": "rara",
+                    "icono": "item_promocion",
+                    "efecto": "descuento_inicio"
+                }
+            ]
+        },
+        "retoDelDia": {
+            "descripcion": "Completa 1 etapa",
+            "progreso": 0,
+            "total": 1,
+            "reclamado": false
+        }
+    },
+    "world": {
+        "id": "world_1",
+        "stages": [
+            { "id": 1, "x": 140, "y": 360, "estado": "active", "tipo": "desafio", "enCurso": false, "cofre": "none" },
+            { "id": 2, "x": 250, "y": 318, "estado": "locked", "tipo": "recompensa", "enCurso": false, "cofre": "closed" },
+            { "id": 3, "x": 360, "y": 282, "estado": "locked", "tipo": "promo", "enCurso": false, "cofre": "none" },
+            { "id": 4, "x": 470, "y": 248, "estado": "locked", "tipo": "desafio", "enCurso": false, "cofre": "none" },
+            { "id": 5, "x": 590, "y": 264, "estado": "locked", "tipo": "recompensa", "enCurso": false, "cofre": "closed" },
+            { "id": 6, "x": 700, "y": 302, "estado": "locked", "tipo": "promo", "enCurso": false, "cofre": "none" },
+            { "id": 7, "x": 790, "y": 272, "estado": "locked", "tipo": "desafio_final", "enCurso": false, "cofre": "none" }
+        ],
+        "currentStage": 1,
+        "stageEnCurso": false,
+        "casino": { "x": 915, "y": 208, "estado": "locked" },
+        "props": {
+            "pathCurvePoints": [
+                { "x": 140, "y": 360 },
+                { "x": 250, "y": 318 },
+                { "x": 360, "y": 282 },
+                { "x": 470, "y": 248 },
+                { "x": 590, "y": 264 },
+                { "x": 700, "y": 302 },
+                { "x": 790, "y": 272 },
+                { "x": 848, "y": 250 },
+                { "x": 915, "y": 208 }
+            ]
+        },
+        "npc": { "x": 560, "y": 380, "nombre": "Guia" },
+        "board": { "x": 952, "y": 116 },
+        "book": { "x": 92, "y": 114 }
+    },
+    "misiones": {
+        "activas": [
+            {
+                "id": "mision-casino",
+                "titulo": "Ruta al Gran Casino",
+                "descripcion": "Completa las 7 etapas para entrar al casino",
+                "progreso": 0,
+                "total": 7,
+                "reclamada": false
+            }
+        ]
+    },
+    "ui": {
+        "popup": null,
+        "toasts": [],
+        "hud": {
+            "fichasCounter": { "x": 214, "y": 44 },
+            "energiaCounter": { "x": 438, "y": 44 }
+        },
+        "dock": {
+            "mochila": { "x": 420, "y": 570 },
+            "casino": { "x": 520, "y": 570 },
+            "tienda": { "x": 620, "y": 570 }
+        },
+        "popups": {
+            "bgColor": "#0b1020",
+            "borderColor": "#ffd166"
+        }
+    },
+    "layout": {
+        "components": [
+            { "id": "canvas-main", "component": "GameCanvas", "props": {} }
+        ]
+    },
+    "interactions": {
+        "iniciarStage": { "payload": ["stageId"] },
+        "completarStage": { "payload": ["stageId"] },
+        "abrirCofre": { "payload": ["stageId"] },
+        "toggleMochila": { "payload": [] },
+        "abrirMisiones": { "payload": [] },
+        "reclamarMision": { "payload": ["missionId"] },
+        "abrirEventos": { "payload": [] },
+        "entrarCasino": { "payload": [] },
+        "reiniciarJuego": { "payload": [] }
+    }
+}

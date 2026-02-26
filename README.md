@@ -1,5 +1,3 @@
-# Ruta al Gran Casino - Demo Pro
-
 Arquitectura:
 
 - `frontend`: React + PixiJS (render-only + applyPatch + SSE)
