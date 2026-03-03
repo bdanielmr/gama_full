@@ -1,10 +1,22 @@
 import type { ActionRequest, GameEventMessage, PatchMessage, WorldTemplate } from '../types';
 
-const BASE_URL = (import.meta.env.VITE_BFF_URL || 'http://localhost:3001').replace(/\/$/, '');
+type GameClientOptions = {
+  baseUrl?: string;
+};
+
+function normalizeBaseUrl(value?: string) {
+  return (value || 'http://localhost:3001').replace(/\/$/, '');
+}
 
 export class GameClient {
+  private readonly baseUrl: string;
+
+  constructor(options: GameClientOptions = {}) {
+    this.baseUrl = normalizeBaseUrl(options.baseUrl);
+  }
+
   async loadTemplate(): Promise<WorldTemplate> {
-    const response = await fetch(`${BASE_URL}/template`);
+    const response = await fetch(`${this.baseUrl}/template`);
     if (!response.ok) {
       throw new Error('Failed to fetch template');
     }
@@ -12,7 +24,7 @@ export class GameClient {
   }
 
   async loadState(): Promise<WorldTemplate> {
-    const response = await fetch(`${BASE_URL}/state`);
+    const response = await fetch(`${this.baseUrl}/state`);
     if (!response.ok) {
       throw new Error('Failed to fetch state');
     }
@@ -20,7 +32,7 @@ export class GameClient {
   }
 
   async sendAction(request: ActionRequest) {
-    const response = await fetch(`${BASE_URL}/action`, {
+    const response = await fetch(`${this.baseUrl}/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -35,7 +47,7 @@ export class GameClient {
   }
 
   subscribeEvents(onMessage: (message: PatchMessage | GameEventMessage | any) => void) {
-    const source = new EventSource(`${BASE_URL}/events`);
+    const source = new EventSource(`${this.baseUrl}/events`);
 
     source.onmessage = (event) => {
       try {

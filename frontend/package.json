@@ -1,11 +1,31 @@
 {
-  "name": "frontend",
+  "name": "@bdanielmr/ruta-casino-frontend",
   "version": "1.0.0",
-  "private": true,
+  "private": false,
   "type": "module",
+  "main": "dist-lib/index.cjs",
+  "module": "dist-lib/index.js",
+  "types": "dist-lib/lib-index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/lib-index.d.ts",
+      "import": "./dist-lib/index.js",
+      "require": "./dist-lib/index.cjs"
+    },
+    "./styles.css": "./styles.css"
+  },
+  "files": [
+    "dist-lib",
+    "styles.css"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:lib": "vite build --mode lib && tsc -p tsconfig.lib.json && cp src/styles.css styles.css",
+    "pack:local": "npm run build:lib && npm pack",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,5 +39,9 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.3",
     "vite": "^5.4.12"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
   }
 }

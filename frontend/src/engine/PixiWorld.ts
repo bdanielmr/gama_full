@@ -107,6 +107,7 @@ export class PixiWorld {
   private worldFade = 0;
 
   private onResize = () => this.resizeToHost();
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(private dispatchAction: DispatchAction) {}
 
@@ -158,6 +159,15 @@ export class PixiWorld {
 
     this.resizeToHost();
     window.addEventListener('resize', this.onResize);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.resizeToHost());
+      this.resizeObserver.observe(host);
+      if (host.parentElement) {
+        this.resizeObserver.observe(host.parentElement);
+      }
+    }
+
     this.attachTicker();
   }
 
@@ -175,7 +185,6 @@ export class PixiWorld {
     this.updateDock(state);
     this.updatePopup(state);
     this.syncToasts(state.ui.toasts);
-    this.resizeToHost();
   }
 
   handleEvents(events: GameEventMessage[]) {
@@ -187,6 +196,9 @@ export class PixiWorld {
 
   destroy() {
     window.removeEventListener('resize', this.onResize);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+
     if (this.app) {
       try {
         this.app.destroy();
@@ -210,8 +222,22 @@ export class PixiWorld {
       return;
     }
 
-    const width = Math.max(this.host.clientWidth, 1);
-    const height = Math.max(this.host.clientHeight, 1);
+    const hostRect = this.host.getBoundingClientRect();
+    const parentRect = this.host.parentElement?.getBoundingClientRect();
+
+    let width = Math.round(hostRect.width || parentRect?.width || 0);
+    if (width < 320) {
+      width = Math.max(320, Math.round(parentRect?.width || 320));
+      this.host.style.width = '100%';
+    }
+
+    let height = Math.round(hostRect.height || parentRect?.height || 0);
+    if (height < 220) {
+      const fallbackHeight = Math.max(360, Math.min(Math.round((width * 620) / 1040), 820));
+      this.host.style.height = `${fallbackHeight}px`;
+      this.host.style.minHeight = `${fallbackHeight}px`;
+      height = fallbackHeight;
+    }
 
     this.app.renderer.resize(width, height);
 

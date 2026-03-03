@@ -9,14 +9,14 @@ type Props = {
 
 export default function RenderEngine({ worldState, onAction, runtimeEvents = [] }: Props) {
   return (
-    <main className="layout-grid">
+    <main className="rcg-layout-grid" style={{ width: "100%", minHeight: "420px", height: "100%" }}>
       {worldState.layout.components.map((componentConfig) => {
         const componentName = componentConfig.component || componentConfig.type || 'Unknown';
         const Component = componentRegistry[componentName];
 
         if (!Component) {
           return (
-            <section key={componentConfig.id} className="card">
+            <section key={componentConfig.id} className="rcg-card">
               <h2>Unknown component</h2>
               <p>{componentName}</p>
             </section>

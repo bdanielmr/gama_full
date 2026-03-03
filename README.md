@@ -60,7 +60,7 @@ Al entrar al casino tras completar etapa 7 del `world_1`, el BFF aplica patch co
 ### BFF
 
 ```bash
-cd new_project/bff
+cd /Users/bryandanielmoncadaramos/gama_full/bff
 npm install
 npm run start:dev
 ```
@@ -68,9 +68,118 @@ npm run start:dev
 ### Frontend
 
 ```bash
-cd new_project/frontend
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
 npm install
 npm run dev
 ```
 
 Abrir `http://localhost:5173`.
+
+## Frontend como paquete local (Rollup/Vite Library Mode)
+
+El frontend ahora soporta empaquetado de libreria para integrar en otro proyecto interno.
+
+### Generar build de libreria
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
+npm run build:lib
+```
+
+Salida:
+
+- `dist-lib/index.js` (ESM)
+- `dist-lib/index.cjs` (CommonJS)
+- `dist-lib/style.css`
+- `dist-lib/*.d.ts`
+
+### Crear tarball local
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
+npm run pack:local
+```
+
+Esto genera algo como:
+
+- `bdanielmr-ruta-casino-frontend-1.0.0.tgz`
+
+### Instalar en otro proyecto
+
+```bash
+cd /ruta/de/otro-proyecto
+npm install /Users/bryandanielmoncadaramos/gama_full/frontend/bdanielmr-ruta-casino-frontend-1.0.0.tgz
+```
+
+### Uso basico
+
+```tsx
+import { RutaCasinoApp } from '@bdanielmr/ruta-casino-frontend';
+import '@bdanielmr/ruta-casino-frontend/styles.css';
+
+export default function PantallaJuego() {
+  return <RutaCasinoApp />;
+}
+```
+
+Notas:
+
+- Define `VITE_BFF_URL` en el proyecto consumidor apuntando a tu BFF.
+- El paquete declara `react` y `react-dom` como `peerDependencies`.
+
+## Publicar paquete en npm (automático con GitHub Actions)
+
+Se agregó workflow:
+
+- `/Users/bryandanielmoncadaramos/gama_full/.github/workflows/publish-npm-package.yml`
+
+### Requisitos
+
+1. Crear token en npm con permisos de publish.
+2. Guardarlo en GitHub Secrets del repo como `NPM_TOKEN`.
+
+### Flujo de release recomendado
+
+1. Incrementa versión en `frontend/package.json`.
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
+npm version patch
+```
+
+Opciones de versión:
+
+- `npm version patch`
+- `npm version minor`
+- `npm version major`
+
+2. Sube commit y tag:
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full
+git push origin develop
+git push origin --tags
+```
+
+3. El workflow se dispara cuando llega un tag `vX.Y.Z` y publica en npm.
+
+Validación del workflow:
+
+- Si el tag y la versión de `frontend/package.json` no coinciden, falla.
+
+### Uso del módulo por evento (sin props)
+
+El orquestador debe emitir configuración antes de montar `RutaCasinoApp`.
+
+```tsx
+import { emitRutaCasinoConfig, RutaCasinoApp } from '@bdanielmr/ruta-casino-frontend';
+import '@bdanielmr/ruta-casino-frontend/styles.css';
+
+emitRutaCasinoConfig({
+  bffUrl: process.env.NEXT_PUBLIC_BFF_URL,
+});
+
+export default function PantallaJuego() {
+  return <RutaCasinoApp />;
+}
+```
