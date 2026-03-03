@@ -1,7 +1,7 @@
 {
   "name": "@bdanielmr/ruta-casino-frontend",
   "version": "1.0.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist-lib/index.cjs",
   "module": "dist-lib/index.js",
@@ -18,6 +18,9 @@
     "dist-lib",
     "styles.css"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

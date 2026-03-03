@@ -126,3 +126,60 @@ Notas:
 
 - Define `VITE_BFF_URL` en el proyecto consumidor apuntando a tu BFF.
 - El paquete declara `react` y `react-dom` como `peerDependencies`.
+
+## Publicar paquete en npm (automático con GitHub Actions)
+
+Se agregó workflow:
+
+- `/Users/bryandanielmoncadaramos/gama_full/.github/workflows/publish-npm-package.yml`
+
+### Requisitos
+
+1. Crear token en npm con permisos de publish.
+2. Guardarlo en GitHub Secrets del repo como `NPM_TOKEN`.
+
+### Flujo de release recomendado
+
+1. Incrementa versión en `frontend/package.json`.
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
+npm version patch
+```
+
+Opciones de versión:
+
+- `npm version patch`
+- `npm version minor`
+- `npm version major`
+
+2. Sube commit y tag:
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full
+git push origin develop
+git push origin --tags
+```
+
+3. El workflow se dispara cuando llega un tag `vX.Y.Z` y publica en npm.
+
+Validación del workflow:
+
+- Si el tag y la versión de `frontend/package.json` no coinciden, falla.
+
+### Uso del módulo por evento (sin props)
+
+El orquestador debe emitir configuración antes de montar `RutaCasinoApp`.
+
+```tsx
+import { emitRutaCasinoConfig, RutaCasinoApp } from '@bdanielmr/ruta-casino-frontend';
+import '@bdanielmr/ruta-casino-frontend/styles.css';
+
+emitRutaCasinoConfig({
+  bffUrl: process.env.NEXT_PUBLIC_BFF_URL,
+});
+
+export default function PantallaJuego() {
+  return <RutaCasinoApp />;
+}
+```
