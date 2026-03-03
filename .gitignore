@@ -38,3 +38,7 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# local package artifacts
+frontend/dist-lib/
+frontend/*.tgz

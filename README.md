@@ -60,7 +60,7 @@ Al entrar al casino tras completar etapa 7 del `world_1`, el BFF aplica patch co
 ### BFF
 
 ```bash
-cd new_project/bff
+cd /Users/bryandanielmoncadaramos/gama_full/bff
 npm install
 npm run start:dev
 ```
@@ -68,9 +68,61 @@ npm run start:dev
 ### Frontend
 
 ```bash
-cd new_project/frontend
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
 npm install
 npm run dev
 ```
 
 Abrir `http://localhost:5173`.
+
+## Frontend como paquete local (Rollup/Vite Library Mode)
+
+El frontend ahora soporta empaquetado de libreria para integrar en otro proyecto interno.
+
+### Generar build de libreria
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
+npm run build:lib
+```
+
+Salida:
+
+- `dist-lib/index.js` (ESM)
+- `dist-lib/index.cjs` (CommonJS)
+- `dist-lib/style.css`
+- `dist-lib/*.d.ts`
+
+### Crear tarball local
+
+```bash
+cd /Users/bryandanielmoncadaramos/gama_full/frontend
+npm run pack:local
+```
+
+Esto genera algo como:
+
+- `bdanielmr-ruta-casino-frontend-1.0.0.tgz`
+
+### Instalar en otro proyecto
+
+```bash
+cd /ruta/de/otro-proyecto
+npm install /Users/bryandanielmoncadaramos/gama_full/frontend/bdanielmr-ruta-casino-frontend-1.0.0.tgz
+```
+
+### Uso basico
+
+```tsx
+import { RutaCasinoApp } from '@bdanielmr/ruta-casino-frontend';
+import '@bdanielmr/ruta-casino-frontend/styles.css';
+
+export default function PantallaJuego() {
+  return <RutaCasinoApp />;
+}
+```
+
+Notas:
+
+- Define `VITE_BFF_URL` en el proyecto consumidor apuntando a tu BFF.
+- El paquete declara `react` y `react-dom` como `peerDependencies`.

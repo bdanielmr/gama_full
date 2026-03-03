@@ -4,8 +4,12 @@ import { applyPatch } from './engine/applyPatch';
 import RenderEngine from './engine/renderEngine';
 import type { GameEventMessage, PatchMessage, WorldTemplate } from './types';
 
-export default function App() {
-  const client = useMemo(() => new GameClient(), []);
+export type RutaCasinoAppProps = {
+  bffUrl?: string;
+};
+
+export default function App({ bffUrl }: RutaCasinoAppProps) {
+  const client = useMemo(() => new GameClient({ baseUrl: bffUrl }), [bffUrl]);
   const [template, setTemplate] = useState<WorldTemplate | null>(null);
   const [worldState, setWorldState] = useState<WorldTemplate | null>(null);
   const [events, setEvents] = useState<GameEventMessage[]>([]);
@@ -66,15 +70,15 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="app app-error">
-        <p className="error">{error}</p>
+      <div className="rcg-app rcg-app-error">
+        <p className="rcg-error">{error}</p>
       </div>
     );
   }
 
   if (!template || !worldState) {
     return (
-      <div className="app app-error">
+      <div className="rcg-app rcg-app-error">
         <p>Cargando mundo...</p>
       </div>
     );
@@ -82,8 +86,11 @@ export default function App() {
 
   return (
     <div
-      className="app"
+      className="rcg-app"
       style={{
+        width: '100%',
+        minHeight: '420px',
+        height: '100%',
         backgroundImage: `linear-gradient(rgba(2,6,18,0.58), rgba(2,6,18,0.8)), url(${template.assets.background})`,
       }}
     >

@@ -48,5 +48,5 @@ export default function GameCanvas({ worldState, onAction, runtimeEvents = [] }:
     worldRef.current?.handleEvents(runtimeEvents);
   }, [runtimeEvents]);
 
-  return <div ref={hostRef} className="game-host" />;
+  return <div ref={hostRef} className="rcg-game-host" style={{ minHeight: '420px', height: '100%' }} />;
 }
