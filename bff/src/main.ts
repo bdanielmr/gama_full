@@ -6,7 +6,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT || 3001);
   const corsOrigins = (
     process.env.CORS_ORIGINS ||
-    'http://localhost:5173,http://127.0.0.1:5173,https://gama-full.vercel.app'
+    'http://localhost:5173,http://127.0.0.1:5173,https://gama-full.vercel.app,https://superb-empanada-a918f9.netlify.app'
   )
     .split(',')
     .map((item) => item.trim())
