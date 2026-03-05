@@ -33,6 +33,10 @@ export class ActionService {
         return this.entrarCasino();
       case 'reiniciarJuego':
         return this.reiniciarJuego();
+      case 'adminSumarFichas':
+        return this.adminSumarFichas(payload?.amount, payload?.reason);
+      case 'adminMoverJugador':
+        return this.adminMoverJugador(payload?.stageId, payload?.reason);
       default:
         throw new BadRequestException(`Unsupported action: ${action}`);
     }
@@ -356,6 +360,75 @@ export class ActionService {
     this.sseService.emit({ type: 'patch', patch: resetState });
     this.emitEvent('worldChanged', { worldId: resetState.world.id, reset: true });
     return { ok: true, patch: resetState };
+  }
+
+  private adminSumarFichas(amount: number, reason?: string) {
+    const state = this.worldService.getState();
+    const delta = Number(amount || 0);
+
+    if (!Number.isFinite(delta) || delta <= 0) {
+      throw new BadRequestException('amount debe ser un numero positivo');
+    }
+
+    const patch = {
+      player: {
+        fichas: Number(state.player?.fichas || 0) + delta,
+      },
+      ui: {
+        toasts: this.pushToast(
+          state.ui?.toasts || [],
+          'admin',
+          `Backoffice: +${delta} fichas${reason ? ` (${reason})` : ''}`,
+        ),
+      },
+    };
+
+    this.publishPatch(patch);
+    this.emitEvent('coinsAdjustedByAdmin', {
+      amount: delta,
+      reason: reason || 'manual_adjustment',
+      at: new Date().toISOString(),
+    });
+
+    return { ok: true, patch };
+  }
+
+  private adminMoverJugador(stageId: number, reason?: string) {
+    const state = this.worldService.getState();
+    const nextStageId = Number(stageId || 0);
+    const stage = this.findStage(nextStageId);
+
+    if (!Number.isFinite(nextStageId) || !stage) {
+      throw new BadRequestException('stageId invalido');
+    }
+
+    const patch = {
+      player: {
+        currentStage: nextStageId,
+        posicion: {
+          stageId: nextStageId,
+        },
+      },
+      world: {
+        currentStage: nextStageId,
+      },
+      ui: {
+        toasts: this.pushToast(
+          state.ui?.toasts || [],
+          'admin',
+          `Backoffice movio jugador a etapa ${nextStageId}${reason ? ` (${reason})` : ''}`,
+        ),
+      },
+    };
+
+    this.publishPatch(patch);
+    this.emitEvent('playerMovedByAdmin', {
+      stageId: nextStageId,
+      reason: reason || 'manual_move',
+      at: new Date().toISOString(),
+    });
+
+    return { ok: true, patch };
   }
 
   private applyEnergyRegen() {
