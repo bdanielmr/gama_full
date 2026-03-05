@@ -1,32 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GameClient } from './api/client';
+import { createGameClient } from './api/client';
+import { getRutaCasinoConfig, subscribeRutaCasinoConfig, type RutaCasinoConfig } from './configStore';
 import { applyPatch } from './engine/applyPatch';
 import RenderEngine from './engine/renderEngine';
-import { getRutaCasinoConfig, subscribeRutaCasinoConfig } from './configBus';
 import type { GameEventMessage, PatchMessage, WorldTemplate } from './types';
 
+function stableKey(value: unknown) {
+  try {
+    return JSON.stringify(value || {});
+  } catch {
+    return String(Date.now());
+  }
+}
+
 export default function App() {
-  const [bffUrl, setBffUrl] = useState(() => getRutaCasinoConfig().bffUrl);
-  const client = useMemo(() => new GameClient({ baseUrl: bffUrl }), [bffUrl]);
+  const [config, setConfig] = useState<RutaCasinoConfig>(() => getRutaCasinoConfig());
+  const configKey = useMemo(() => stableKey(config), [config]);
+  const client = useMemo(() => createGameClient({ config }), [configKey]);
+
   const [template, setTemplate] = useState<WorldTemplate | null>(null);
   const [worldState, setWorldState] = useState<WorldTemplate | null>(null);
   const [events, setEvents] = useState<GameEventMessage[]>([]);
   const [error, setError] = useState('');
-
   useEffect(() => {
-    const unsubscribe = subscribeRutaCasinoConfig((config) => {
-      if (config?.bffUrl && config.bffUrl !== bffUrl) {
-        setBffUrl(config.bffUrl);
-      }
+    const unsubscribe = subscribeRutaCasinoConfig((nextConfig) => {
+      setConfig((prev) => {
+        const prevKey = stableKey(prev);
+        const nextKey = stableKey(nextConfig);
+        return prevKey === nextKey ? prev : nextConfig;
+      });
     });
 
-    const latest = getRutaCasinoConfig();
-    if (latest?.bffUrl && latest.bffUrl !== bffUrl) {
-      setBffUrl(latest.bffUrl);
-    }
-
     return unsubscribe;
-  }, [bffUrl]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;

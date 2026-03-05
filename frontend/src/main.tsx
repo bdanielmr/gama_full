@@ -1,9 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles.css';
-import { RutaCasinoApp, emitRutaCasinoConfig } from './lib-index';
+import { RutaCasinoApp, setRutaCasinoConfig } from './lib-index';
 
-emitRutaCasinoConfig({ bffUrl: import.meta.env.VITE_BFF_URL });
+setRutaCasinoConfig({
+  connection: {
+    baseUrl: import.meta.env.VITE_BFF_URL,
+  },
+  auth: {
+    bearerToken: import.meta.env.VITE_BEARER_TOKEN,
+  },
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

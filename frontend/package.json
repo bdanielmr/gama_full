@@ -1,6 +1,6 @@
 {
-  "name": "@bdanielmr/ruta-casino-frontend",
-  "version": "1.0.1",
+  "name": "@atlantic/gama-world",
+  "version": "1.0.0",
   "private": false,
   "type": "module",
   "main": "dist-lib/index.cjs",
