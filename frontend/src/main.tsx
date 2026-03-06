@@ -14,7 +14,7 @@ setRutaCasinoConfig({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <div style={{ width: '100%', minHeight: 420, height: '70vh' }}>
+    <div style={{ width: '100%', minHeight: 420, height: '90vh' }}>
       <RutaCasinoApp />
     </div>
   </React.StrictMode>,

@@ -73,7 +73,7 @@ export default function App() {
       }
 
       if (message?.type === 'event') {
-        setEvents((prev) => [...prev.slice(-20), message as GameEventMessage]);
+        setEvents((prev) => [...prev, message as GameEventMessage]);
       }
     });
 
@@ -107,6 +107,11 @@ export default function App() {
     );
   }
 
+  const isLevelTwoOrMore = Number(worldState.player?.nivel || 1) >= 2;
+  const overlayGradient = isLevelTwoOrMore
+    ? 'linear-gradient(rgba(8, 34, 23, 0.62), rgba(8, 34, 23, 0.82))'
+    : 'linear-gradient(rgba(2,6,18,0.58), rgba(2,6,18,0.8))';
+
   return (
     <div
       className="rcg-app"
@@ -114,7 +119,7 @@ export default function App() {
         width: '100%',
         minHeight: '420px',
         height: '100%',
-        backgroundImage: `linear-gradient(rgba(2,6,18,0.58), rgba(2,6,18,0.8)), url(${template.assets.background})`,
+        backgroundImage: `${overlayGradient}, url(${template.assets.background})`,
       }}
     >
       <RenderEngine worldState={worldState} onAction={onAction} runtimeEvents={events} />
