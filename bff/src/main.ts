@@ -4,16 +4,19 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = Number(process.env.PORT || 3001);
-  const corsOrigins = (
+  const corsOriginsRaw =
     process.env.CORS_ORIGINS ||
-    'http://localhost:5173,http://127.0.0.1:5173,https://gama-full.vercel.app'
-  )
+    'http://localhost:5173,http://127.0.0.1:5173,https://gama-full.vercel.app,https://gamacdn.netlify.app';
+  const allowAllCors =
+    corsOriginsRaw.trim() === '*' || process.env.CORS_ALLOW_ALL?.toLowerCase() === 'true';
+  const corsOrigins = corsOriginsRaw
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 
   const localhostOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
   const vercelPreviewPattern = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
+  const netlifyPattern = /^https:\/\/[a-z0-9-]+\.netlify\.app$/i;
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -23,9 +26,11 @@ async function bootstrap() {
       }
 
       const isAllowed =
+        allowAllCors ||
         corsOrigins.includes(origin) ||
         localhostOriginPattern.test(origin) ||
-        vercelPreviewPattern.test(origin);
+        vercelPreviewPattern.test(origin) ||
+        netlifyPattern.test(origin);
 
       if (isAllowed) {
         callback(null, true);
