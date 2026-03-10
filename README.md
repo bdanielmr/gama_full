@@ -172,11 +172,13 @@ Validación del workflow:
 El orquestador debe emitir configuración antes de montar `RutaCasinoApp`.
 
 ```tsx
-import { emitRutaCasinoConfig, RutaCasinoApp } from '@bdanielmr/ruta-casino-frontend';
+import { setRutaCasinoConfig, RutaCasinoApp } from '@bdanielmr/ruta-casino-frontend';
 import '@bdanielmr/ruta-casino-frontend/styles.css';
 
-emitRutaCasinoConfig({
-  bffUrl: process.env.NEXT_PUBLIC_BFF_URL,
+setRutaCasinoConfig({
+  connection: {
+    baseUrl: process.env.NEXT_PUBLIC_BFF_URL,
+  },
 });
 
 export default function PantallaJuego() {

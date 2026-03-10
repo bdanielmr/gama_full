@@ -1,6 +1,6 @@
 {
-  "name": "@bdanielmr/ruta-casino-frontend",
-  "version": "1.0.1",
+  "name": "@atlantic/gama-world",
+  "version": "1.0.0",
   "private": false,
   "type": "module",
   "main": "dist-lib/index.cjs",
@@ -24,6 +24,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:cdn": "tsc -b && vite build",
     "build:lib": "vite build --mode lib && tsc -p tsconfig.lib.json && cp src/styles.css styles.css",
     "pack:local": "npm run build:lib && npm pack",
     "preview": "vite preview"

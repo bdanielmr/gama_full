@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
 import type { GameEventMessage, Item, Stage, WorldTemplate } from '../types';
 
 type DispatchAction = (action: string, payload?: any) => void;
@@ -26,12 +26,29 @@ type CoinParticle = {
   t: number;
 };
 
+
+type StagePassFx = {
+  runner: Container;
+  runnerBody: Graphics;
+  slash: Graphics;
+  impact: Graphics;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  t: number;
+  duration: number;
+  impactShown: boolean;
+};
+
 export class PixiWorld {
   private app: Application | null = null;
   private host: HTMLDivElement | null = null;
   private currentState: WorldTemplate | null = null;
 
-  private logicalSize = { width: 1040, height: 620 };
+  private logicalSize = { width: 720, height: 860 };
+  private sourceWorldSize = { width: 1040, height: 620 };
+  private worldViewport = { x: 52, y: 126, width: 616, height: 610 };
 
   private root = new Container();
   private worldLayer = new Container();
@@ -41,21 +58,30 @@ export class PixiWorld {
 
   private bg = new Graphics();
   private stars = new Graphics();
+  private ground = new Graphics();
   private path = new Graphics();
   private fadeOverlay = new Graphics();
 
   private player = new Container();
   private playerBody = new Graphics();
-  private playerLabel = new Text({ text: '', style: new TextStyle({ fill: '#ecfeff', fontSize: 12, fontWeight: 'bold' }) });
+  private playerSpriteIdle: Sprite | null = null;
+  private playerSpriteWalk: Sprite | null = null;
+  private playerSpriteKey = '';
+  private playerSpriteLoading = false;
+  private playerSpriteFailedKey = '';
+  private jumpSpriteTexture: any | null = null;
+  private jumpSpriteKey = '';
+  private jumpSpriteLoading = false;
+  private playerLabel = new Text({ text: '', style: new TextStyle({ fill: '#ecfeff', fontSize: 14, fontWeight: 'bold' }) });
   private backpack = new Graphics();
 
   private book = new Container();
   private bookBody = new Graphics();
-  private bookLabel = new Text({ text: 'MISIONES', style: new TextStyle({ fill: '#ffee99', fontSize: 10, fontWeight: 'bold' }) });
+  private bookLabel = new Text({ text: 'MISIONES', style: new TextStyle({ fill: '#ffee99', fontSize: 12, fontWeight: 'bold' }) });
 
   private board = new Container();
   private boardBody = new Graphics();
-  private boardLabel = new Text({ text: 'EVENTOS', style: new TextStyle({ fill: '#d6f6ff', fontSize: 10, fontWeight: 'bold' }) });
+  private boardLabel = new Text({ text: 'EVENTOS', style: new TextStyle({ fill: '#d6f6ff', fontSize: 12, fontWeight: 'bold' }) });
 
   private npc = new Container();
   private npcBody = new Graphics();
@@ -65,17 +91,20 @@ export class PixiWorld {
   private casinoGlow = new Graphics();
   private casinoBody = new Graphics();
   private casinoLabel = new Text({ text: 'GRAN CASINO', style: new TextStyle({ fill: '#ffe8a3', fontSize: 16, fontWeight: 'bold' }) });
+  private casinoHomeSprite: Sprite | null = null;
+  private casinoHomeSpriteKey = '';
+  private casinoHomeSpriteLoading = false;
 
   private hudTop = new Container();
   private avatarDot = new Graphics();
-  private levelText = new Text({ text: '', style: new TextStyle({ fill: '#fef3c7', fontSize: 14, fontWeight: 'bold' }) });
+  private levelText = new Text({ text: '', style: new TextStyle({ fill: '#fef3c7', fontSize: 18, fontWeight: 'bold' }) });
   private xpBarBg = new Graphics();
   private xpBarFill = new Graphics();
-  private fichasText = new Text({ text: '', style: new TextStyle({ fill: '#fef3c7', fontSize: 14, fontWeight: 'bold' }) });
-  private energiaText = new Text({ text: '', style: new TextStyle({ fill: '#dbeafe', fontSize: 14, fontWeight: 'bold' }) });
+  private fichasText = new Text({ text: '', style: new TextStyle({ fill: '#fef3c7', fontSize: 18, fontWeight: 'bold' }) });
+  private energiaText = new Text({ text: '', style: new TextStyle({ fill: '#dbeafe', fontSize: 18, fontWeight: 'bold' }) });
   private energiaBarBg = new Graphics();
   private energiaBarFill = new Graphics();
-  private retoText = new Text({ text: '', style: new TextStyle({ fill: '#fde68a', fontSize: 12, fontWeight: '600' }) });
+  private retoText = new Text({ text: '', style: new TextStyle({ fill: '#fde68a', fontSize: 14, fontWeight: '600' }) });
   private retoBarBg = new Graphics();
   private retoBarFill = new Graphics();
 
@@ -87,7 +116,7 @@ export class PixiWorld {
 
   private popup = new Container();
   private popupBg = new Graphics();
-  private popupTitle = new Text({ text: '', style: new TextStyle({ fill: '#f8fafc', fontSize: 18, fontWeight: 'bold' }) });
+  private popupTitle = new Text({ text: '', style: new TextStyle({ fill: '#f8fafc', fontSize: 22, fontWeight: 'bold' }) });
   private popupBody = new Container();
   private popupClose = new Container();
   private restartButton = new Container();
@@ -96,6 +125,7 @@ export class PixiWorld {
   private toasts = new Map<string, FloatingToast>();
   private seenToastIds = new Set<string>();
   private coinParticles: CoinParticle[] = [];
+  private stagePassFx: StagePassFx[] = [];
 
   private inventoryTab: 'recompensas' | 'promociones' = 'recompensas';
   private lastPopup: WorldTemplate['ui']['popup'] = null;
@@ -105,6 +135,11 @@ export class PixiWorld {
   private elapsed = 0;
   private energyFlash = 0;
   private worldFade = 0;
+  private isPlayerMoving = false;
+  private stagePassPlayerHidden = false;
+  private casinoTransitionHidden = false;
+  private enterCasinoPending = false;
+  private lastWorldId = '';
 
   private onResize = () => this.resizeToHost();
   private resizeObserver: ResizeObserver | null = null;
@@ -118,6 +153,7 @@ export class PixiWorld {
 
     this.host = host;
     this.currentState = state;
+    this.lastWorldId = state.world?.id || '';
 
     const app = new Application();
     await app.init({
@@ -148,8 +184,10 @@ export class PixiWorld {
 
     app.stage.addChild(this.root);
 
+    this.worldLayer.sortableChildren = true;
+
     this.createBackground();
-    this.createWorldObjects();
+    this.createWorldObjects(state);
     this.createHud();
     this.createDock();
     this.createPopupSkeleton();
@@ -172,11 +210,21 @@ export class PixiWorld {
   }
 
   update(state: WorldTemplate) {
+    const worldId = state.world?.id || '';
+    if (this.lastWorldId && worldId && this.lastWorldId !== worldId) {
+      this.enterCasinoPending = false;
+      this.casinoTransitionHidden = false;
+      this.backpack.visible = true;
+      this.syncPlayerVisibility();
+    }
+    this.lastWorldId = worldId;
+
     this.currentState = state;
     if (!this.app) {
       return;
     }
 
+    this.applyWorldTheme(state.player?.nivel || 1);
     this.updatePath(state.world.props.pathCurvePoints || state.world.stages);
     this.updateStages(state.world.stages);
     this.updatePlayer(state);
@@ -188,6 +236,10 @@ export class PixiWorld {
   }
 
   handleEvents(events: GameEventMessage[]) {
+    if (events.length < this.lastEventIndex) {
+      this.lastEventIndex = 0;
+    }
+
     for (let i = this.lastEventIndex; i < events.length; i += 1) {
       this.handleEvent(events[i]);
     }
@@ -208,10 +260,17 @@ export class PixiWorld {
       this.app = null;
     }
 
+    this.removePlayerSprites();
+    this.removeCasinoHomeSprite();
     this.stageVisuals.clear();
     this.toasts.clear();
     this.seenToastIds.clear();
     this.coinParticles = [];
+    this.stagePassFx = [];
+    this.enterCasinoPending = false;
+    this.casinoTransitionHidden = false;
+    this.backpack.visible = true;
+    this.setPlayerVisibilityForStagePass(false);
     this.currentState = null;
     this.host = null;
     this.lastEventIndex = 0;
@@ -233,7 +292,7 @@ export class PixiWorld {
 
     let height = Math.round(hostRect.height || parentRect?.height || 0);
     if (height < 220) {
-      const fallbackHeight = Math.max(360, Math.min(Math.round((width * 620) / 1040), 820));
+      const fallbackHeight = Math.max(500, Math.min(Math.round((width * 860) / 720), 900));
       this.host.style.height = `${fallbackHeight}px`;
       this.host.style.minHeight = `${fallbackHeight}px`;
       height = fallbackHeight;
@@ -259,18 +318,28 @@ export class PixiWorld {
       this.stars.fill({ color: 0x9fc5ff, alpha: Math.random() * 0.75 + 0.2 });
     }
 
-    const ground = new Graphics();
-    ground.roundRect(16, 384, this.logicalSize.width - 32, 210, 22);
-    ground.fill({ color: 0x0d1b33, alpha: 0.88 });
-    ground.stroke({ color: 0x2e3f6b, width: 2 });
-    this.worldLayer.addChild(ground);
+    this.worldLayer.addChild(this.ground);
+    this.applyWorldTheme(this.currentState?.player?.nivel || 1);
 
     this.fadeOverlay.rect(0, 0, this.logicalSize.width, this.logicalSize.height);
     this.fadeOverlay.fill({ color: 0x000000, alpha: 1 });
     this.fadeOverlay.alpha = 0;
   }
 
-  private createWorldObjects() {
+  private applyWorldTheme(level: number) {
+    const isDarkGreen = Number(level || 1) >= 2;
+
+    this.bg.clear();
+    this.bg.rect(0, 0, this.logicalSize.width, this.logicalSize.height);
+    this.bg.fill({ color: isDarkGreen ? 0x10291d : 0x08142a });
+
+    this.ground.clear();
+    this.ground.roundRect(20, 150, this.logicalSize.width - 40, this.logicalSize.height - 240, 28);
+    this.ground.fill({ color: isDarkGreen ? 0x163629 : 0x0d1b33, alpha: 0.88 });
+    this.ground.stroke({ color: isDarkGreen ? 0x2d6a4f : 0x2e3f6b, width: 2 });
+  }
+
+  private createWorldObjects(state: WorldTemplate) {
     this.playerBody.roundRect(-20, -34, 40, 62, 12);
     this.playerBody.fill({ color: 0x4cc9f0, alpha: 0.95 });
     this.playerBody.stroke({ color: 0xa5f3fc, width: 2.2 });
@@ -278,7 +347,7 @@ export class PixiWorld {
     this.backpack.roundRect(-9, -9, 20, 26, 6);
     this.backpack.fill({ color: 0x8d5524 });
     this.backpack.stroke({ color: 0xe8b27e, width: 2 });
-    this.backpack.x = 18;
+    this.backpack.x = -22;
     this.backpack.y = -10;
     this.backpack.eventMode = 'static';
     this.backpack.cursor = 'pointer';
@@ -291,9 +360,13 @@ export class PixiWorld {
     this.player.addChild(this.playerBody);
     this.player.addChild(this.backpack);
     this.player.addChild(this.playerLabel);
+    this.player.zIndex = 60;
     this.worldLayer.addChild(this.player);
 
-    this.bookBody.roundRect(-26, -26, 52, 52, 10);
+    this.ensurePlayerSprites(state);
+    this.ensureJumpSpriteTexture(state);
+
+    this.bookBody.roundRect(-36, -26, 72, 52, 10);
     this.bookBody.fill({ color: 0x6d4c41, alpha: 0.95 });
     this.bookBody.stroke({ color: 0xffd166, width: 2 });
     this.bookLabel.anchor.set(0.5);
@@ -304,7 +377,7 @@ export class PixiWorld {
     this.book.on('pointertap', () => this.dispatchAction('abrirMisiones', {}));
     this.uiLayer.addChild(this.book);
 
-    this.boardBody.roundRect(-30, -25, 60, 50, 10);
+    this.boardBody.roundRect(-40, -25, 80, 50, 10);
     this.boardBody.fill({ color: 0x374151, alpha: 0.95 });
     this.boardBody.stroke({ color: 0x93c5fd, width: 2 });
     this.boardLabel.anchor.set(0.5);
@@ -322,7 +395,7 @@ export class PixiWorld {
     this.npcLabel.y = 20;
     this.npc.addChild(this.npcBody);
     this.npc.addChild(this.npcLabel);
-    this.worldLayer.addChild(this.npc);
+    this.npc.visible = false;
 
     this.casinoGlow.circle(0, 0, 92);
     this.casinoGlow.fill({ color: 0xffd166, alpha: 0.2 });
@@ -338,42 +411,45 @@ export class PixiWorld {
     this.casino.addChild(this.casinoLabel);
     this.casino.eventMode = 'static';
     this.casino.cursor = 'pointer';
-    this.casino.on('pointertap', () => this.dispatchAction('entrarCasino', {}));
+    this.casino.on('pointertap', () => this.onCasinoClick());
+    this.casino.zIndex = 25;
     this.worldLayer.addChild(this.casino);
+
+    this.ensureCasinoHomeSprite(state);
   }
 
   private createHud() {
     const hudBg = new Graphics();
-    hudBg.roundRect(20, 14, 590, 88, 14);
+    hudBg.roundRect(20, 14, 680, 120, 14);
     hudBg.fill({ color: 0x0b1020, alpha: 0.88 });
     hudBg.stroke({ color: 0xffd166, width: 1.6, alpha: 0.72 });
 
     this.avatarDot.circle(0, 0, 18);
     this.avatarDot.fill({ color: 0x38bdf8, alpha: 0.9 });
-    this.avatarDot.x = 56;
-    this.avatarDot.y = 58;
+    this.avatarDot.x = 52;
+    this.avatarDot.y = 52;
 
-    this.levelText.x = 88;
-    this.levelText.y = 32;
+    this.levelText.x = 82;
+    this.levelText.y = 26;
 
-    this.xpBarBg.roundRect(88, 58, 150, 12, 6);
+    this.xpBarBg.roundRect(82, 50, 160, 12, 6);
     this.xpBarBg.fill({ color: 0x111827, alpha: 0.95 });
     this.xpBarBg.stroke({ color: 0x64748b, width: 1.2 });
 
     this.fichasText.x = 270;
-    this.fichasText.y = 40;
+    this.fichasText.y = 26;
 
-    this.energiaText.x = 430;
-    this.energiaText.y = 40;
+    this.energiaText.x = 470;
+    this.energiaText.y = 26;
 
-    this.energiaBarBg.roundRect(430, 62, 144, 10, 5);
+    this.energiaBarBg.roundRect(470, 50, 178, 10, 5);
     this.energiaBarBg.fill({ color: 0x111827, alpha: 0.95 });
     this.energiaBarBg.stroke({ color: 0x64748b, width: 1.2 });
 
-    this.retoText.x = 640;
-    this.retoText.y = 38;
+    this.retoText.x = 82;
+    this.retoText.y = 82;
 
-    this.retoBarBg.roundRect(640, 62, 220, 10, 5);
+    this.retoBarBg.roundRect(82, 104, 566, 10, 5);
     this.retoBarBg.fill({ color: 0x111827, alpha: 0.95 });
     this.retoBarBg.stroke({ color: 0x64748b, width: 1.2 });
 
@@ -391,15 +467,15 @@ export class PixiWorld {
     this.hudTop.addChild(this.retoBarFill);
 
     this.restartButton = this.makeDockButton('REINICIO', () => this.dispatchAction('reiniciarJuego', {}), 94, 36);
-    this.restartButton.x = 956;
-    this.restartButton.y = 56;
+    this.restartButton.x = 650;
+    this.restartButton.y = 50;
     this.hudTop.addChild(this.restartButton);
 
     this.uiLayer.addChild(this.hudTop);
   }
 
   private createDock() {
-    this.dockBg.roundRect(360, 532, 320, 74, 18);
+    this.dockBg.roundRect(190, 760, 340, 84, 18);
     this.dockBg.fill({ color: 0x0b1020, alpha: 0.9 });
     this.dockBg.stroke({ color: 0xffd166, width: 1.8, alpha: 0.82 });
     this.dock.addChild(this.dockBg);
@@ -433,6 +509,8 @@ export class PixiWorld {
   }
 
   private createStages(stages: Stage[]) {
+    this.removePlayerSprites();
+    this.removeCasinoHomeSprite();
     this.stageVisuals.clear();
     for (const stage of stages) {
       const container = new Container();
@@ -450,8 +528,10 @@ export class PixiWorld {
       container.addChild(glow);
       container.addChild(body);
       container.addChild(label);
-      container.x = stage.x;
-      container.y = stage.y;
+      const mapped = this.mapWorldPoint(stage.x, stage.y);
+      container.x = mapped.x;
+      container.y = mapped.y;
+      container.zIndex = 20;
       container.eventMode = 'static';
       container.cursor = 'pointer';
       container.on('pointertap', () => this.onStageClick(stage.id));
@@ -459,6 +539,26 @@ export class PixiWorld {
       this.worldLayer.addChild(container);
       this.stageVisuals.set(stage.id, { id: stage.id, container, glow, body, label });
     }
+  }
+
+  private onCasinoClick() {
+    const state = this.currentState;
+    if (!state) {
+      return;
+    }
+
+    if (state.world.casino.estado !== 'unlocked') {
+      this.dispatchAction('entrarCasino', {});
+      return;
+    }
+
+    if (this.enterCasinoPending) {
+      return;
+    }
+
+    const casinoPos = this.mapWorldPoint(state.world.casino.x, state.world.casino.y);
+    this.playerTarget = { x: casinoPos.x - 24, y: casinoPos.y + 14 };
+    this.enterCasinoPending = true;
   }
 
   private onStageClick(stageId: number) {
@@ -473,11 +573,8 @@ export class PixiWorld {
     }
 
     if (stage.estado === 'active') {
-      if (stage.enCurso || state.world.stageEnCurso) {
-        this.dispatchAction('completarStage', { stageId: stage.id });
-      } else {
-        this.dispatchAction('iniciarStage', { stageId: stage.id });
-      }
+      // Single-click flow handled authoritatively by BFF.
+      this.dispatchAction('resolverStage', { stageId: stage.id });
       return;
     }
 
@@ -492,15 +589,18 @@ export class PixiWorld {
       return;
     }
 
-    this.path.moveTo(points[0].x, points[0].y);
+    const first = this.mapWorldPoint(points[0].x, points[0].y);
+    this.path.moveTo(first.x, first.y);
     for (let i = 1; i < points.length; i += 1) {
-      this.path.lineTo(points[i].x, points[i].y);
+      const p = this.mapWorldPoint(points[i].x, points[i].y);
+      this.path.lineTo(p.x, p.y);
     }
     this.path.stroke({ color: 0x2f83f7, width: 10, alpha: 0.22 });
 
-    this.path.moveTo(points[0].x, points[0].y);
+    this.path.moveTo(first.x, first.y);
     for (let i = 1; i < points.length; i += 1) {
-      this.path.lineTo(points[i].x, points[i].y);
+      const p = this.mapWorldPoint(points[i].x, points[i].y);
+      this.path.lineTo(p.x, p.y);
     }
     this.path.stroke({ color: 0xffd166, width: 2.3, alpha: 0.72 });
   }
@@ -512,8 +612,9 @@ export class PixiWorld {
         continue;
       }
 
-      visual.container.x = stage.x;
-      visual.container.y = stage.y;
+      const mapped = this.mapWorldPoint(stage.x, stage.y);
+      visual.container.x = mapped.x;
+      visual.container.y = mapped.y;
       visual.body.clear();
       visual.label.text = String(stage.id);
 
@@ -547,12 +648,202 @@ export class PixiWorld {
     }
   }
 
+  private ensureCasinoHomeSprite(state: WorldTemplate) {
+    const spriteUrl = state.assets?.sprites?.home_casino || '/assets/home_casino.png';
+    if (!spriteUrl) {
+      this.removeCasinoHomeSprite();
+      this.casinoBody.visible = true;
+      this.casinoLabel.visible = true;
+      return;
+    }
+
+    if (this.casinoHomeSpriteKey === spriteUrl && (this.casinoHomeSprite || this.casinoHomeSpriteLoading)) {
+      return;
+    }
+
+    this.casinoHomeSpriteKey = spriteUrl;
+    this.casinoHomeSpriteLoading = true;
+
+    void (async () => {
+      try {
+        const tex = await Assets.load(spriteUrl);
+        if (this.casinoHomeSpriteKey !== spriteUrl) {
+          return;
+        }
+
+        this.removeCasinoHomeSprite();
+
+        const sprite = new Sprite(tex as any);
+        sprite.anchor.set(0.5);
+        sprite.width = 130;
+        sprite.height = 98;
+        sprite.x = 22;
+        sprite.y = 2;
+
+        this.casino.addChild(sprite);
+        this.casino.setChildIndex(sprite, this.casino.children.length - 1);
+        this.casinoHomeSprite = sprite;
+        this.casinoBody.visible = false;
+        this.casinoLabel.visible = false;
+      } catch {
+        this.removeCasinoHomeSprite();
+        this.casinoBody.visible = true;
+        this.casinoLabel.visible = true;
+      } finally {
+        if (this.casinoHomeSpriteKey === spriteUrl) {
+          this.casinoHomeSpriteLoading = false;
+        }
+      }
+    })();
+  }
+
+  private removeCasinoHomeSprite() {
+    if (!this.casinoHomeSprite) {
+      return;
+    }
+    this.casino.removeChild(this.casinoHomeSprite);
+    this.casinoHomeSprite.destroy();
+    this.casinoHomeSprite = null;
+  }
+
+  private ensureJumpSpriteTexture(state: WorldTemplate) {
+    const jumpUrl = state.assets?.sprites?.jump_men || '/assets/jump_men.png';
+    if (!jumpUrl) {
+      return;
+    }
+
+    if (this.jumpSpriteTexture && this.jumpSpriteKey === jumpUrl) {
+      return;
+    }
+
+    if (this.jumpSpriteLoading && this.jumpSpriteKey === jumpUrl) {
+      return;
+    }
+
+    this.jumpSpriteKey = jumpUrl;
+    this.jumpSpriteLoading = true;
+
+    void (async () => {
+      try {
+        const tex = await Assets.load(jumpUrl);
+        if (this.jumpSpriteKey === jumpUrl) {
+          this.jumpSpriteTexture = tex;
+        }
+      } catch {
+        // keep fallback vector if asset is unavailable
+      } finally {
+        if (this.jumpSpriteKey === jumpUrl) {
+          this.jumpSpriteLoading = false;
+        }
+      }
+    })();
+  }
+
+  private ensurePlayerSprites(state: WorldTemplate) {
+    const sprites = state.assets?.sprites || {};
+    const idleUrl = sprites.player_idle || sprites.player_hombre_idle;
+    const walkUrl = sprites.player_walk || sprites.player_hombre_walk || idleUrl;
+
+    if (!idleUrl) {
+      this.removePlayerSprites();
+    this.removeCasinoHomeSprite();
+      this.playerBody.visible = true;
+      this.playerBody.alpha = 0.95;
+      return;
+    }
+
+    const key = `${idleUrl}|${walkUrl}`;
+
+    if (this.playerSpriteFailedKey === key) {
+      this.playerBody.visible = true;
+      this.playerBody.alpha = 0.95;
+      return;
+    }
+
+    if (this.playerSpriteKey === key && (this.playerSpriteIdle || this.playerSpriteLoading)) {
+      return;
+    }
+
+    this.playerSpriteKey = key;
+    this.playerSpriteLoading = true;
+
+    void (async () => {
+      try {
+        const idleTexture = await Assets.load(idleUrl);
+        const walkTexture = walkUrl && walkUrl !== idleUrl ? await Assets.load(walkUrl) : idleTexture;
+
+        if (this.playerSpriteKey !== key) {
+          return;
+        }
+
+        this.removePlayerSprites(false);
+
+        const idle = new Sprite(idleTexture as any);
+        const walk = new Sprite(walkTexture as any);
+
+        for (const sprite of [idle, walk]) {
+          sprite.anchor.set(0.5, 1);
+          sprite.width = 56;
+          sprite.height = 78;
+          sprite.x = 0;
+          sprite.y = 28;
+        }
+
+        walk.visible = false;
+
+        this.player.addChildAt(idle, 0);
+        this.player.addChildAt(walk, 0);
+
+        this.playerSpriteIdle = idle;
+        this.playerSpriteWalk = walk;
+        this.playerBody.visible = false;
+        this.playerBody.alpha = 0.95;
+      } catch {
+        this.playerSpriteFailedKey = key;
+        this.removePlayerSprites(false);
+        this.playerBody.visible = true;
+        this.playerBody.alpha = 0.95;
+      } finally {
+        if (this.playerSpriteKey === key) {
+          this.playerSpriteLoading = false;
+        }
+      }
+    })();
+  }
+
+  private removePlayerSprites(resetKey = true) {
+    if (this.playerSpriteIdle) {
+      this.player.removeChild(this.playerSpriteIdle);
+      this.playerSpriteIdle.destroy();
+      this.playerSpriteIdle = null;
+    }
+
+    if (this.playerSpriteWalk) {
+      this.player.removeChild(this.playerSpriteWalk);
+      this.playerSpriteWalk.destroy();
+      this.playerSpriteWalk = null;
+    }
+
+    if (resetKey) {
+      this.playerSpriteKey = '';
+      this.playerSpriteLoading = false;
+      this.playerSpriteFailedKey = '';
+    }
+
+    this.playerBody.visible = true;
+    this.playerBody.alpha = 0.95;
+  }
+
   private updatePlayer(state: WorldTemplate) {
     const stage = state.world.stages.find((item) => item.id === state.player.currentStage) || state.world.stages[0];
     if (!stage) {
       return;
     }
-    this.playerTarget = { x: stage.x, y: stage.y - 58 };
+
+    this.ensurePlayerSprites(state);
+    this.ensureJumpSpriteTexture(state);
+    const mappedStage = this.mapWorldPoint(stage.x, stage.y);
+    this.playerTarget = { x: mappedStage.x - 28, y: mappedStage.y + 26 };
     this.playerLabel.text = state.player.nombre;
   }
 
@@ -562,7 +853,7 @@ export class PixiWorld {
     const xpBase = (state.player.nivel - 1) * 100;
     const xpProgress = Math.max(0, Math.min(1, (state.player.xp - xpBase) / 100));
     this.xpBarFill.clear();
-    this.xpBarFill.roundRect(88, 58, 150 * xpProgress, 12, 6);
+    this.xpBarFill.roundRect(82, 50, 160 * xpProgress, 12, 6);
     this.xpBarFill.fill({ color: 0x5eead4, alpha: 0.95 });
 
     this.fichasText.text = `🪙 ${state.player.fichas}`;
@@ -570,30 +861,37 @@ export class PixiWorld {
     this.energiaText.text = `⚡ ${state.player.energia}/${state.player.energiaMax}`;
     this.energiaBarFill.clear();
     const energyProgress = Math.max(0, Math.min(1, state.player.energia / Math.max(1, state.player.energiaMax)));
-    this.energiaBarFill.roundRect(430, 62, 144 * energyProgress, 10, 5);
+    this.energiaBarFill.roundRect(470, 50, 178 * energyProgress, 10, 5);
     this.energiaBarFill.fill({ color: this.energyFlash > 0 ? 0xf97316 : 0x60a5fa, alpha: 0.95 });
 
     const reto = state.player.retoDelDia;
     this.retoText.text = `Reto del dia: ${reto.descripcion} (${reto.progreso}/${reto.total})`;
     this.retoBarFill.clear();
     const retoProgress = Math.max(0, Math.min(1, reto.progreso / Math.max(1, reto.total)));
-    this.retoBarFill.roundRect(640, 62, 220 * retoProgress, 10, 5);
+    this.retoBarFill.roundRect(82, 104, 566 * retoProgress, 10, 5);
     this.retoBarFill.fill({ color: reto.reclamado ? 0x22c55e : 0xf59e0b, alpha: 0.95 });
   }
 
   private updateWorldObjects(state: WorldTemplate) {
-    this.book.x = state.world.book.x;
-    this.book.y = state.world.book.y;
+    this.ensureCasinoHomeSprite(state);
+    const bookPos = this.mapWorldPoint(state.world.book.x, state.world.book.y);
+    this.book.x = bookPos.x;
+    this.book.y = bookPos.y;
 
-    this.board.x = state.world.board.x;
-    this.board.y = state.world.board.y;
+    const boardPos = this.mapWorldPoint(state.world.board.x, state.world.board.y);
+    void boardPos;
+    this.board.x = this.logicalSize.width - bookPos.x;
+    this.board.y = bookPos.y;
 
-    this.npc.x = state.world.npc.x;
-    this.npc.y = state.world.npc.y;
+    const npcPos = this.mapWorldPoint(state.world.npc.x, state.world.npc.y);
+    this.npc.x = npcPos.x;
+    this.npc.y = npcPos.y;
     this.npcLabel.text = state.world.npc.nombre;
+    this.npc.visible = false;
 
-    this.casino.x = state.world.casino.x;
-    this.casino.y = state.world.casino.y;
+    const casinoPos = this.mapWorldPoint(state.world.casino.x, state.world.casino.y);
+    this.casino.x = casinoPos.x;
+    this.casino.y = casinoPos.y;
 
     this.casinoBody.clear();
     if (state.world.casino.estado === 'locked') {
@@ -601,22 +899,24 @@ export class PixiWorld {
       this.casinoBody.fill({ color: 0x5f6673, alpha: 0.75 });
       this.casinoBody.stroke({ color: 0x9aa0ab, width: 3 });
       this.casinoGlow.alpha = 0.06;
+      if (this.casinoHomeSprite) this.casinoHomeSprite.alpha = 1;
     } else {
       this.casinoBody.roundRect(-72, -58, 144, 116, 18);
       this.casinoBody.fill({ color: 0x6d28d9, alpha: 0.95 });
       this.casinoBody.stroke({ color: 0xffd166, width: 3.4 });
       this.casinoGlow.alpha = 0.32;
+      if (this.casinoHomeSprite) this.casinoHomeSprite.alpha = 1;
     }
   }
 
   private updateDock(state: WorldTemplate) {
-    const dock = state.ui.dock;
-    this.dockMochila.x = dock.mochila.x;
-    this.dockMochila.y = dock.mochila.y;
-    this.dockCasino.x = dock.casino.x;
-    this.dockCasino.y = dock.casino.y;
-    this.dockTienda.x = dock.tienda.x;
-    this.dockTienda.y = dock.tienda.y;
+    void state;
+    this.dockMochila.x = 252;
+    this.dockMochila.y = 802;
+    this.dockCasino.x = 360;
+    this.dockCasino.y = 802;
+    this.dockTienda.x = 468;
+    this.dockTienda.y = 802;
   }
 
   private updatePopup(state: WorldTemplate) {
@@ -633,19 +933,19 @@ export class PixiWorld {
     this.popup.y = this.logicalSize.height * 0.5;
 
     this.popupBg.clear();
-    this.popupBg.roundRect(-270, -185, 540, 370, 14);
+    this.popupBg.roundRect(-300, -260, 600, 520, 14);
     this.popupBg.fill({ color: 0x0b1020, alpha: 0.95 });
     this.popupBg.stroke({ color: 0xffd166, width: 2.2, alpha: 0.9 });
 
     this.popupTitle.anchor.set(0.5, 0);
     this.popupTitle.x = 0;
-    this.popupTitle.y = -156;
+    this.popupTitle.y = -228;
 
-    this.popupBody.x = -235;
-    this.popupBody.y = -110;
+    this.popupBody.x = -260;
+    this.popupBody.y = -176;
 
-    this.popupClose.x = 235;
-    this.popupClose.y = -156;
+    this.popupClose.x = 262;
+    this.popupClose.y = -228;
 
     if (this.lastPopup !== popup) {
       this.popupBody.removeChildren();
@@ -746,21 +1046,21 @@ export class PixiWorld {
 
       const container = new Container();
       const bg = new Graphics();
-      bg.roundRect(0, 0, 340, 38, 9);
+      bg.roundRect(0, 0, 300, 44, 10);
       bg.fill({ color: 0x111827, alpha: 0.9 });
       bg.stroke({ color: 0xffd166, width: 1.3, alpha: 0.8 });
 
       const label = new Text({
         text: toast.texto,
-        style: new TextStyle({ fill: '#f8fafc', fontSize: 13, fontWeight: '600', wordWrap: true, wordWrapWidth: 315 }),
+        style: new TextStyle({ fill: '#f8fafc', fontSize: 15, fontWeight: '600', wordWrap: true, wordWrapWidth: 270 }),
       });
       label.x = 12;
-      label.y = 9;
+      label.y = 11;
 
       container.addChild(bg);
       container.addChild(label);
-      container.x = this.logicalSize.width - 365;
-      container.y = 120 + this.toasts.size * 44;
+      container.x = this.logicalSize.width - 325;
+      container.y = 138 + this.toasts.size * 50;
 
       this.fxLayer.addChild(container);
       this.toasts.set(toast.id, { id: toast.id, container, life: 360 });
@@ -773,11 +1073,25 @@ export class PixiWorld {
       return;
     }
 
+    if (event.name === 'stageCompleted') {
+      const completedStageId = Number(event.data?.stageId || this.currentState.world.currentStage);
+      const fromStage = this.currentState.world.stages.find((item) => item.id === completedStageId);
+      const toStage = this.currentState.world.stages.find((item) => item.id === this.currentState.player.currentStage)
+        || this.currentState.world.stages.find((item) => item.id === completedStageId + 1);
+
+      if (fromStage && toStage) {
+        const from = this.mapWorldPoint(fromStage.x, fromStage.y);
+        const to = this.mapWorldPoint(toStage.x, toStage.y);
+        this.spawnStagePassAnimation(from.x, from.y - 58, to.x, to.y - 58);
+      }
+    }
+
     if (event.name === 'coinsEarned') {
       const stageId = Number(event.data?.fromStage || this.currentState.world.currentStage);
       const stage = this.currentState.world.stages.find((item) => item.id === stageId);
       if (stage) {
-        this.spawnCoinBurst(stage.x, stage.y - 20, this.currentState.ui.hud.fichasCounter.x, this.currentState.ui.hud.fichasCounter.y);
+        const from = this.mapWorldPoint(stage.x, stage.y);
+        this.spawnCoinBurst(from.x, from.y - 20, 300, 34);
       }
     }
 
@@ -791,12 +1105,99 @@ export class PixiWorld {
     }
 
     if (event.name === 'casinoUnlocked') {
-      this.spawnFloatingText('Casino desbloqueado', this.currentState.world.casino.x - 42, this.currentState.world.casino.y - 90, '#fcd34d');
+      const casinoPos = this.mapWorldPoint(this.currentState.world.casino.x, this.currentState.world.casino.y);
+      this.spawnFloatingText('Casino desbloqueado', casinoPos.x - 42, casinoPos.y - 90, '#fcd34d');
     }
 
     if (event.name === 'worldChanged') {
       this.worldFade = 1;
     }
+  }
+
+  private syncPlayerVisibility() {
+    this.player.visible = !(this.stagePassPlayerHidden || this.casinoTransitionHidden);
+  }
+
+  private setPlayerVisibilityForStagePass(hidden: boolean) {
+    this.stagePassPlayerHidden = hidden;
+    this.syncPlayerVisibility();
+  }
+
+  private spawnStagePassAnimation(fromX: number, fromY: number, toX: number, toY: number) {
+    const runner = new Container();
+    const runnerBody = new Graphics();
+    runnerBody.roundRect(-11, -28, 22, 44, 8);
+    runnerBody.fill({ color: 0x4cc9f0, alpha: 0.95 });
+    runnerBody.stroke({ color: 0xdbeafe, width: 1.6, alpha: 0.9 });
+
+    const sword = new Graphics();
+    sword.roundRect(7, -8, 18, 4, 2);
+    sword.fill({ color: 0xfff3c2, alpha: 0.95 });
+    sword.stroke({ color: 0xffd166, width: 1.2, alpha: 0.9 });
+
+    runner.addChild(runnerBody);
+    runner.addChild(sword);
+    runner.x = fromX;
+    runner.y = fromY;
+    runner.zIndex = 80;
+    this.fxLayer.addChild(runner);
+
+    const jumpSpriteFromCache = this.jumpSpriteTexture;
+    if (jumpSpriteFromCache) {
+      const jumpSprite = new Sprite(jumpSpriteFromCache as any);
+      jumpSprite.anchor.set(0.5, 1);
+      jumpSprite.width = 72;
+      jumpSprite.height = 96;
+      jumpSprite.y = 24;
+      runner.addChild(jumpSprite);
+      runnerBody.visible = false;
+      sword.visible = false;
+    } else {
+      const jumpSpriteUrl = this.currentState?.assets?.sprites?.jump_men || '/assets/jump_men.png';
+      void (async () => {
+        try {
+          const tex = await Assets.load(jumpSpriteUrl);
+          this.jumpSpriteTexture = tex;
+          this.jumpSpriteKey = jumpSpriteUrl;
+          if (!runner.parent) {
+            return;
+          }
+          const jumpSprite = new Sprite(tex as any);
+          jumpSprite.anchor.set(0.5, 1);
+          jumpSprite.width = 72;
+          jumpSprite.height = 96;
+          jumpSprite.y = 24;
+          runner.addChild(jumpSprite);
+          runnerBody.visible = false;
+          sword.visible = false;
+        } catch {
+          // keep vector fallback if jump sprite is unavailable
+        }
+      })();
+    }
+
+    const slash = new Graphics();
+    this.fxLayer.addChild(slash);
+
+    const impact = new Graphics();
+    impact.alpha = 0;
+    this.fxLayer.addChild(impact);
+
+    this.setPlayerVisibilityForStagePass(true);
+
+    this.stagePassFx.push({
+      runner,
+      runnerBody,
+      slash,
+      impact,
+      fromX,
+      fromY,
+      toX,
+      toY,
+      t: 0,
+      duration: 40,
+      impactShown: false,
+    });
   }
 
   private spawnCoinBurst(fromX: number, fromY: number, toX: number, toY: number) {
@@ -841,9 +1242,38 @@ export class PixiWorld {
     this.app.ticker.add((ticker) => {
       this.elapsed += ticker.deltaTime;
 
-      this.player.x += (this.playerTarget.x - this.player.x) * 0.14;
-      this.player.y += (this.playerTarget.y - this.player.y) * 0.14;
+      const dx = this.playerTarget.x - this.player.x;
+      const dy = this.playerTarget.y - this.player.y;
+      this.isPlayerMoving = Math.abs(dx) + Math.abs(dy) > 1.2;
+
+      this.player.x += dx * 0.14;
+      this.player.y += dy * 0.14;
       this.player.y += Math.sin(this.elapsed * 0.09) * 0.12;
+
+      if (this.enterCasinoPending) {
+        const remaining = Math.abs(this.playerTarget.x - this.player.x) + Math.abs(this.playerTarget.y - this.player.y);
+        if (remaining < 8) {
+          this.enterCasinoPending = false;
+          this.casinoTransitionHidden = true;
+          this.backpack.visible = false;
+          this.syncPlayerVisibility();
+          this.dispatchAction('entrarCasino', {});
+        }
+      }
+
+      if (this.playerSpriteIdle && this.playerSpriteWalk) {
+        this.playerSpriteWalk.visible = this.isPlayerMoving;
+        this.playerSpriteIdle.visible = !this.isPlayerMoving;
+        this.playerBody.visible = false;
+        this.playerBody.alpha = 0.95;
+      } else {
+        this.playerBody.visible = true;
+        this.playerBody.alpha = 0.95;
+      }
+
+      if (!this.casinoTransitionHidden) {
+        this.backpack.visible = true;
+      }
 
       for (const stage of this.stageVisuals.values()) {
         const stageState = this.currentState?.world.stages.find((item) => item.id === stage.id);
@@ -865,6 +1295,65 @@ export class PixiWorld {
 
       if (this.currentState?.world.casino.estado === 'unlocked') {
         this.casinoGlow.alpha = 0.22 + Math.sin(this.elapsed * 0.08) * 0.14;
+      }
+
+      for (let i = this.stagePassFx.length - 1; i >= 0; i -= 1) {
+        const fx = this.stagePassFx[i];
+        fx.t += ticker.deltaTime;
+        const progress = Math.min(1, fx.t / fx.duration);
+        const ease = 1 - (1 - progress) * (1 - progress);
+        const arc = Math.sin(progress * Math.PI) * 32;
+        const x = fx.fromX + (fx.toX - fx.fromX) * ease;
+        const y = fx.fromY + (fx.toY - fx.fromY) * ease - arc;
+
+        fx.runner.x = x;
+        fx.runner.y = y;
+        fx.runner.alpha = 1 - progress * 0.5;
+
+        const angle = Math.atan2(fx.toY - fx.fromY, fx.toX - fx.fromX);
+        fx.runner.rotation = angle * 0.18;
+        fx.runnerBody.scale.y = 1 + Math.sin(this.elapsed * 0.55) * 0.05;
+
+        const trailLen = 54;
+        const tx = Math.cos(angle) * trailLen;
+        const ty = Math.sin(angle) * trailLen;
+        fx.slash.clear();
+        fx.slash.moveTo(x, y);
+        fx.slash.lineTo(x - tx, y - ty);
+        fx.slash.stroke({ color: 0xffd166, width: 7, alpha: Math.max(0, 0.7 - progress * 0.55) });
+        fx.slash.moveTo(x - tx * 0.62, y - ty * 0.62);
+        fx.slash.lineTo(x - tx * 1.1, y - ty * 1.1);
+        fx.slash.stroke({ color: 0x93c5fd, width: 3, alpha: Math.max(0, 0.45 - progress * 0.35) });
+
+        if (progress > 0.84 && !fx.impactShown) {
+          fx.impactShown = true;
+          fx.impact.x = fx.toX;
+          fx.impact.y = fx.toY;
+          fx.impact.clear();
+          fx.impact.circle(0, 0, 6);
+          fx.impact.fill({ color: 0xffd166, alpha: 1 });
+          fx.impact.circle(0, 0, 20);
+          fx.impact.stroke({ color: 0xfff1af, width: 3, alpha: 0.9 });
+          this.spawnFloatingText('Etapa superada', fx.toX - 42, fx.toY - 72, '#fde68a');
+        }
+
+        if (fx.impactShown) {
+          fx.impact.alpha = Math.max(0, fx.impact.alpha - 0.07 * ticker.deltaTime);
+          fx.impact.scale.set(fx.impact.scale.x + 0.01 * ticker.deltaTime);
+        }
+
+        if (progress >= 1) {
+          this.fxLayer.removeChild(fx.runner);
+          this.fxLayer.removeChild(fx.slash);
+          this.fxLayer.removeChild(fx.impact);
+          fx.runner.destroy();
+          fx.slash.destroy();
+          fx.impact.destroy();
+          this.stagePassFx.splice(i, 1);
+          if (this.stagePassFx.length === 0) {
+            this.setPlayerVisibilityForStagePass(false);
+          }
+        }
       }
 
       for (let i = this.coinParticles.length - 1; i >= 0; i -= 1) {
@@ -902,8 +1391,8 @@ export class PixiWorld {
         if (toast.id.startsWith('temp-')) {
           continue;
         }
-        toast.container.x = this.logicalSize.width - 365;
-        toast.container.y += (120 + idx * 44 - toast.container.y) * 0.1;
+        toast.container.x = this.logicalSize.width - 325;
+        toast.container.y += (138 + idx * 50 - toast.container.y) * 0.1;
         idx += 1;
       }
 
@@ -918,6 +1407,16 @@ export class PixiWorld {
         this.fadeOverlay.alpha = 0;
       }
     });
+  }
+
+  private mapWorldPoint(x: number, y: number) {
+    const nx = Math.max(0, Math.min(1, x / this.sourceWorldSize.width));
+    const ny = Math.max(0, Math.min(1, y / this.sourceWorldSize.height));
+
+    return {
+      x: this.worldViewport.x + ny * this.worldViewport.width,
+      y: this.worldViewport.y + (1 - nx) * this.worldViewport.height,
+    };
   }
 
   private makeLine(text: string, x: number, y: number, color = '#f8fafc', size = 15, bold = false) {
@@ -962,7 +1461,7 @@ export class PixiWorld {
 
     const text = new Text({
       text: label,
-      style: new TextStyle({ fill: '#fde68a', fontSize: 11, fontWeight: 'bold' }),
+      style: new TextStyle({ fill: '#fde68a', fontSize: 13, fontWeight: 'bold' }),
     });
     text.anchor.set(0.5);
 

@@ -42,3 +42,6 @@ temp/
 # local package artifacts
 frontend/dist-lib/
 frontend/*.tgz
+
+# local docs artifacts
+docs/

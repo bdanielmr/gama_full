@@ -1,12 +1,20 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
 export default defineConfig(({ mode }) => {
   const isLib = mode === 'lib';
+  const env = loadEnv(mode, process.cwd(), '');
+  const cdnBase = env.VITE_CDN_BASE_URL?.trim();
+  const appBase = cdnBase
+    ? cdnBase.endsWith('/')
+      ? cdnBase
+      : `${cdnBase}/`
+    : '/';
 
   return {
     plugins: [react()],
+    base: isLib ? '/' : appBase,
     server: {
       port: 5173,
     },
@@ -31,6 +39,10 @@ export default defineConfig(({ mode }) => {
             },
           },
         }
-      : undefined,
+      : {
+          outDir: 'dist',
+          emptyOutDir: true,
+          manifest: true,
+        },
   };
 });

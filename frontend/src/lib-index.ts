@@ -1,12 +1,13 @@
 export { default as RutaCasinoApp } from './App';
 export {
+  setRutaCasinoConfig,
   emitRutaCasinoConfig,
   getRutaCasinoConfig,
   subscribeRutaCasinoConfig,
-  RUTA_CASINO_CONFIG_EVENT,
-} from './configBus';
+  resetRutaCasinoConfig,
+} from './configStore';
 
-export type { RutaCasinoConfig } from './configBus';
+export type { RutaCasinoConfig } from './configStore';
 export type {
   WorldTemplate,
   PatchMessage,

@@ -33,6 +33,16 @@ export class ActionService {
         return this.entrarCasino();
       case 'reiniciarJuego':
         return this.reiniciarJuego();
+      case 'adminSumarFichas':
+        return this.adminSumarFichas(payload?.amount, payload?.reason);
+      case 'adminMoverJugador':
+        return this.adminMoverJugador(payload?.stageId, payload?.reason);
+      case 'adminSetEtapaActiva':
+        return this.adminSetEtapaActiva(payload?.stageId, payload?.reason);
+      case 'resolverStage':
+        return this.resolverStage(payload?.stageId);
+      case 'adminNotificar':
+        return this.adminNotificar(payload?.texto, payload?.tipo);
       default:
         throw new BadRequestException(`Unsupported action: ${action}`);
     }
@@ -51,13 +61,7 @@ export class ActionService {
       return this.addToast('aviso', 'La etapa ya esta en curso');
     }
 
-    const energyCost = Number(state.economy?.energyCost || 1);
     const startStageCost = Number(state.economy?.startStageCost || 5);
-
-    if (Number(state.player?.energia || 0) < energyCost) {
-      return this.addToast('error', 'No tienes energia suficiente');
-    }
-
     let cost = startStageCost;
     const promociones = [...(state.player?.inventory?.promociones || [])];
     const discountIndex = promociones.findIndex((item: any) => item.efecto === 'descuento_inicio');
@@ -78,8 +82,6 @@ export class ActionService {
     const patch = {
       player: {
         fichas: Number(state.player.fichas || 0) - cost,
-        energia: Number(state.player.energia || 0) - energyCost,
-        energyUpdatedAt: new Date().toISOString(),
         inventory: {
           ...state.player.inventory,
           promociones,
@@ -95,7 +97,6 @@ export class ActionService {
     };
 
     this.publishPatch(patch);
-    this.emitEvent('energySpent', { amount: energyCost });
     this.emitEvent('stageStarted', { stageId: stage.id, cost });
 
     return { ok: true, patch };
@@ -326,12 +327,18 @@ export class ActionService {
 
     if (state.world.id === 'world_1') {
       const world2Template = this.templateService.getTemplate('world_2');
+      const nextLevel = Math.max(2, Number(state.player?.nivel || 1) + 1);
+      const minXpForNextLevel = (nextLevel - 1) * 100;
+      const nextXp = Math.max(Number(state.player?.xp || 0), minXpForNextLevel);
+
       const patch = {
         narrativa: world2Template.narrativa,
         world: world2Template.world,
         misiones: world2Template.misiones,
         player: {
           ...state.player,
+          nivel: nextLevel,
+          xp: nextXp,
           currentStage: 1,
           posicion: { stageId: 1 },
           retoDelDia: world2Template.player.retoDelDia,
@@ -339,7 +346,11 @@ export class ActionService {
         ui: {
           ...state.ui,
           popup: null,
-          toasts: this.pushToast(state.ui.toasts || [], 'mundo', 'Entrando a Distrito Nocturno'),
+          toasts: this.pushToast(
+            this.pushToast(state.ui.toasts || [], 'nivel', `Subiste a nivel ${nextLevel}`),
+            'mundo',
+            'Entrando a Distrito Nocturno',
+          ),
         },
       };
 
@@ -356,6 +367,179 @@ export class ActionService {
     this.sseService.emit({ type: 'patch', patch: resetState });
     this.emitEvent('worldChanged', { worldId: resetState.world.id, reset: true });
     return { ok: true, patch: resetState };
+  }
+
+  private adminSumarFichas(amount: number, reason?: string) {
+    const state = this.worldService.getState();
+    const delta = Number(amount || 0);
+
+    if (!Number.isFinite(delta) || delta <= 0) {
+      throw new BadRequestException('amount debe ser un numero positivo');
+    }
+
+    const patch = {
+      player: {
+        fichas: Number(state.player?.fichas || 0) + delta,
+      },
+      ui: {
+        toasts: this.pushToast(
+          state.ui?.toasts || [],
+          'admin',
+          `Backoffice: +${delta} fichas${reason ? ` (${reason})` : ''}`,
+        ),
+      },
+    };
+
+    this.publishPatch(patch);
+    this.emitEvent('coinsAdjustedByAdmin', {
+      amount: delta,
+      reason: reason || 'manual_adjustment',
+      at: new Date().toISOString(),
+    });
+
+    return { ok: true, patch };
+  }
+
+  private adminMoverJugador(stageId: number, reason?: string) {
+    const state = this.worldService.getState();
+    const nextStageId = Number(stageId || 0);
+    const stage = this.findStage(nextStageId);
+
+    if (!Number.isFinite(nextStageId) || !stage) {
+      throw new BadRequestException('stageId invalido');
+    }
+
+    const patch = {
+      player: {
+        currentStage: nextStageId,
+        posicion: {
+          stageId: nextStageId,
+        },
+      },
+      world: {
+        currentStage: nextStageId,
+      },
+      ui: {
+        toasts: this.pushToast(
+          state.ui?.toasts || [],
+          'admin',
+          `Backoffice movio jugador a etapa ${nextStageId}${reason ? ` (${reason})` : ''}`,
+        ),
+      },
+    };
+
+    this.publishPatch(patch);
+    this.emitEvent('playerMovedByAdmin', {
+      stageId: nextStageId,
+      reason: reason || 'manual_move',
+      at: new Date().toISOString(),
+    });
+
+    return { ok: true, patch };
+  }
+
+  private adminSetEtapaActiva(stageId: number, reason?: string) {
+    const state = this.worldService.getState();
+    const nextStageId = Number(stageId || 0);
+    const stage = this.findStage(nextStageId);
+
+    if (!Number.isFinite(nextStageId) || !stage) {
+      throw new BadRequestException('stageId invalido');
+    }
+
+    const stages = (state.world?.stages || []).map((item: any) => {
+      if (item.id === nextStageId) {
+        return { ...item, estado: 'active', enCurso: false };
+      }
+      if (item.estado === 'completed') {
+        return { ...item, enCurso: false };
+      }
+      if (item.id < nextStageId) {
+        return { ...item, estado: 'unlocked', enCurso: false };
+      }
+      return { ...item, estado: 'locked', enCurso: false };
+    });
+
+    const patch = {
+      player: {
+        currentStage: nextStageId,
+        posicion: {
+          stageId: nextStageId,
+        },
+      },
+      world: {
+        currentStage: nextStageId,
+        stageEnCurso: false,
+        stages,
+      },
+      ui: {
+        toasts: this.pushToast(
+          state.ui?.toasts || [],
+          'admin',
+          `Etapa activa forzada a ${nextStageId}${reason ? ` (${reason})` : ''}`,
+        ),
+      },
+    };
+
+    this.publishPatch(patch);
+    this.emitEvent('activeStageSetByAdmin', {
+      stageId: nextStageId,
+      reason: reason || 'manual_set_active_stage',
+      at: new Date().toISOString(),
+    });
+
+    return { ok: true, patch };
+  }
+
+  private resolverStage(stageId: number) {
+    const id = Number(stageId || 0);
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new BadRequestException('stageId invalido');
+    }
+
+    const state = this.worldService.getState();
+    const current = Number(state.world?.currentStage || 1);
+
+    if (id !== current) {
+      throw new BadRequestException('Solo puedes resolver la etapa activa');
+    }
+
+    const active = this.findStage(id);
+    if (!active || active.estado !== 'active') {
+      throw new BadRequestException('La etapa indicada no esta activa');
+    }
+
+    const startResult = state.world?.stageEnCurso ? { ok: true } : this.iniciarStage(id);
+
+    if ((startResult as any)?.ok === false) {
+      return startResult;
+    }
+
+    return this.completarStage(id);
+  }
+
+  private adminNotificar(texto: string, tipo = 'admin') {
+    const state = this.worldService.getState();
+    const mensaje = String(texto || '').trim();
+
+    if (!mensaje) {
+      throw new BadRequestException('texto es requerido');
+    }
+
+    const patch = {
+      ui: {
+        toasts: this.pushToast(state.ui?.toasts || [], String(tipo || 'admin'), mensaje),
+      },
+    };
+
+    this.publishPatch(patch);
+    this.emitEvent('adminToast', {
+      tipo: String(tipo || 'admin'),
+      texto: mensaje,
+      at: new Date().toISOString(),
+    });
+
+    return { ok: true, patch };
   }
 
   private applyEnergyRegen() {
