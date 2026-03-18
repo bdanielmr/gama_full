@@ -8,8 +8,8 @@
   "assets": {
     "background": "https://pixijs.com/assets/bg_rotate.jpg",
     "sprites": {
-      "player_idle": "/assets/stay_men.png",
-      "player_walk": "/assets/stay_men.png",
+      "player_idle": "https://res.cloudinary.com/drrbtfji8/image/upload/v1772805070/stay_men_e0skqn.png",
+      "player_walk": "https://res.cloudinary.com/drrbtfji8/image/upload/v1772805070/stay_men_e0skqn.png",
       "stage_locked": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f512.png",
       "stage_unlocked": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f7e2.png",
       "stage_active": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f7e1.png",
@@ -29,8 +29,8 @@
       "item_recompensa": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f381.png",
       "item_promocion": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3ab.png",
       "popup_window": "",
-      "jump_men": "/assets/jump_men.png",
-      "home_casino": "/assets/home_casino.png"
+      "jump_men": "https://res.cloudinary.com/drrbtfji8/image/upload/v1772805071/jump_men_tmxeza.png",
+      "home_casino": "https://res.cloudinary.com/drrbtfji8/image/upload/v1772805070/home_casino_gowuw8.png"
     }
   },
   "economy": {
